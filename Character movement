@@ -1,0 +1,102 @@
+#include <SDL.h>
+#include <iostream>
+
+int main(int argc, char* argv[]) {
+    // Khởi tạo SDL
+    if (SDL_Init(SDL_INIT_VIDEO) < 0) {
+        std::cout << "SDL không khởi tạo được! Lỗi: " << SDL_GetError() << "\n";
+        return 1;
+    }
+
+    // Tạo cửa sổ với kích thước 800x600
+    SDL_Window* window = SDL_CreateWindow("Top-Down Shooter",
+                                          SDL_WINDOWPOS_CENTERED,
+                                          SDL_WINDOWPOS_CENTERED,
+                                          800, 600,
+                                          SDL_WINDOW_SHOWN);
+    if (window == nullptr) {
+        std::cout << "Không tạo được cửa sổ! Lỗi: " << SDL_GetError() << "\n";
+        SDL_Quit();
+        return 1;
+    }
+
+    // Tạo renderer để vẽ đồ họa (sử dụng hardware acceleration)
+    SDL_Renderer* renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
+    if (renderer == nullptr) {
+        std::cout << "Không tạo được renderer! Lỗi: " << SDL_GetError() << "\n";
+        SDL_DestroyWindow(window);
+        SDL_Quit();
+        return 1;
+    }
+
+    // Tạo đối tượng nhân vật dưới dạng hình chữ nhật (50x50)
+    SDL_Rect playerRect;
+    playerRect.w = 50;
+    playerRect.h = 50;
+    playerRect.x = (800 - playerRect.w) / 2;  // Đặt nhân vật ở giữa theo trục x
+    playerRect.y = 500;                       // Vị trí ban đầu ở gần đáy màn hình
+
+    const int speed = 5;  // Tốc độ di chuyển của nhân vật
+
+    bool quit = false;
+    SDL_Event event;
+
+    // Vòng lặp game chính
+    while (!quit) {
+        // Xử lý sự kiện (như đóng cửa sổ)
+        while (SDL_PollEvent(&event) != 0) {
+            if (event.type == SDL_QUIT) {
+                quit = true;
+            }
+        }
+
+        // Lấy trạng thái bàn phím cho input liên tục
+        const Uint8* keyState = SDL_GetKeyboardState(NULL);
+
+        // Lưu vị trí cũ của nhân vật
+        int oldX = playerRect.x;
+        int oldY = playerRect.y;
+
+        // Xử lý di chuyển: W, A, S, D
+        if (keyState[SDL_SCANCODE_W]) {
+            playerRect.y -= speed;  // Di chuyển lên
+        }
+        if (keyState[SDL_SCANCODE_S]) {
+            playerRect.y += speed;  // Di chuyển xuống
+        }
+        if (keyState[SDL_SCANCODE_A]) {
+            playerRect.x -= speed;  // Di chuyển sang trái
+        }
+        if (keyState[SDL_SCANCODE_D]) {
+            playerRect.x += speed;  // Di chuyển sang phải
+        }
+
+        // Giới hạn nhân vật không đi ra ngoài màn hình
+        if (playerRect.x < 0 || playerRect.x > 800 - playerRect.w ||
+            playerRect.y < 0 || playerRect.y > 600 - playerRect.h) {
+            playerRect.x = oldX;
+            playerRect.y = oldY;
+        }
+
+        // Xóa màn hình với màu đen
+        SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+        SDL_RenderClear(renderer);
+
+        // Vẽ nhân vật: đặt màu xanh lá cây
+        SDL_SetRenderDrawColor(renderer, 0, 255, 0, 255);
+        SDL_RenderFillRect(renderer, &playerRect);
+
+        // Cập nhật nội dung render lên cửa sổ
+        SDL_RenderPresent(renderer);
+
+        // Delay để giới hạn tốc độ khung hình ~60 FPS
+        SDL_Delay(16);
+    }
+
+    // Giải phóng tài nguyên và đóng SDL
+    SDL_DestroyRenderer(renderer);
+    SDL_DestroyWindow(window);
+    SDL_Quit();
+
+    return 0;
+}
