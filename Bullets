@@ -1,0 +1,146 @@
+#define SDL_MAIN_HANDLED
+#include <SDL2/SDL.h>
+#include <iostream>
+#include <vector>
+#include<bits/stdc++.h>
+using namespace std;
+
+const int SCREEN_WIDTH = 640;
+const int SCREEN_HEIGHT = 480;
+
+struct Bullet {
+    SDL_Rect rect;
+    int speed1;
+};
+
+
+int main(int argc, char* argv[]) {
+    // Khởi tạo SDL
+    if(SDL_Init(SDL_INIT_VIDEO)<0){
+cout<<"SDL không khởi tạo được! Lỗi: "<<SDL_GetError()<<endl;
+return 1;
+    }
+    //Tạo cửa sổ với kích thước 800x600
+    SDL_Window* window =SDL_CreateWindow("Dragon Ball",
+         SDL_WINDOWPOS_CENTERED,SDL_WINDOWPOS_CENTERED,800,600,SDL_WINDOW_SHOWN);
+if (window==nullptr){
+    cout<<"Không tạo được cửa sổ! Lỗi: "<< SDL_GetError()<<endl;
+    SDL_Quit();
+    return 1;
+}
+
+//Tạo renderer để vẽ đồ họa
+SDL_Renderer* renderer =SDL_CreateRenderer(window,-1, SDL_RENDERER_ACCELERATED);
+if(renderer==nullptr){
+    cout<<"Không tạo được renderer! Lỗi: " << SDL_GetError() <<endl;
+SDL_DestroyWindow(window);
+SDL_Quit;
+return 1;
+}
+
+// Nhân vật
+SDL_Rect playerRect;
+playerRect.w = 50;
+playerRect.h = 50;
+playerRect.x = (800 - playerRect.w) / 2; // Đặt nhân vật theo trục x
+playerRect.y = 500;
+
+const int speed = 5;
+
+// Danh sách đạn
+vector <Bullet> bullets;
+const int bulletSpeed = 7;
+const int bulletWidth = 10, bulletHeight = 20;
+
+
+bool quit = false;
+SDL_Event event;
+
+//Vòng lặp game chính
+while (!quit){
+//Xử lí sự kiện (như đóng cửa sổ)
+while(SDL_PollEvent(&event)!=0){
+    if(event.type == SDL_QUIT){
+        quit = true;
+    }
+}
+
+// Lấy trạng thái bàn phím cho input liên tục
+const Uint8* keyState = SDL_GetKeyboardState(NULL);
+
+//Lưu vị trí cũ của nhân vật
+int oldX = playerRect.x;
+int oldY = playerRect.y;
+
+//Xử lí di chuyển: W,A,S,D
+if (keyState[SDL_SCANCODE_W]) {
+    playerRect.y -= speed; // Di chuyển lên
+}
+if (keyState[SDL_SCANCODE_S]) {
+    playerRect.y += speed; // Di chuyển xuống
+}
+if (keyState[SDL_SCANCODE_A]) {
+    playerRect.x -= speed; // Di chuyển sang trái
+}\
+if (keyState[SDL_SCANCODE_D]) {
+    playerRect.x += speed; // Di chuyển sang phải
+}
+
+// Giới hạn nhân vật không đi ra ngoài màn hình
+if(playerRect.x < 0 || playerRect.x > 800 - playerRect.w || 
+   playerRect.y < 0 || playerRect.y > 600 - playerRect.h) {
+    playerRect.x = oldX;
+    playerRect.y = oldY;
+   }
+
+   // Xử lý bắn đạn
+   if(keyState[SDL_SCANCODE_SPACE]){
+    // Tạo viên đạn mới
+    Bullet newBullet;
+    newBullet.rect.w = bulletWidth;
+    newBullet.rect.h = bulletHeight;
+    newBullet.rect.x = playerRect.x + playerRect.w / 2 - bulletWidth / 2;  // Căn giữa nhân vật\
+    newBullet.rect.y = playerRect.y'
+    newBullet.speed1 = bulletSpeed;
+
+    //Thêm đạn vào danh sách
+    bullets.push_back(newBullet);
+   }
+
+   // Cập nhật vị trí đạn
+   for (auto& bullet : bullets) {
+    bullet.rect.y -= bullet.speed1;  // Đạn bay lên
+}
+
+// Xóa đan khi bay khỏi màn hình
+   bullets.erase( remove_if(bullets.begin(),bullets.end(),[](const Bullet& b) { return b.rect.y + b.rect.h < 0; }), bullets.end());
+
+   // Xóa màn hình với màu đen
+   SDL_SetRenderDrawColor( renderer, 0,0,0,255);
+   SDL_RenderClear(renderer);
+
+   // Vẽ nhân vật: đặt màu xanh lá cây
+   SDL_SetRenderDrawColor(renderer, 0 ,255, 0 , 255);
+   SDL_RenderFillRect(renderer, & playerRect);
+
+   // Vẽ đạn màu đỏ
+   SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255);
+   for( const auto& bullet : bullets){
+    SDL_RenderFillRect(renderer, &bullet.rect);
+   }
+
+   // Cập nhật nội dung render lên cửa sổ
+   SDL_RenderPresent(renderer);
+
+   // Delay để giới hạn tốc độ khung hình ~ 60 FPS 
+   SDL_Delay(16);
+}
+
+// Giải phóng tài nguyên và đóng SDL
+SDL_DestroyRenderer(renderer);
+SDL_DestroyWindow(window);
+SDL_Quit();
+
+
+return 0;
+}
