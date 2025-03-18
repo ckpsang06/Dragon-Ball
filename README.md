@@ -1,2 +1,2 @@
-# Dragon-Ball
-Kill the monster to protect the world
+# Spaceship
+Kill the alien to protect the world
