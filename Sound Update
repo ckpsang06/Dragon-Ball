@@ -1,0 +1,302 @@
+#define SDL_MAIN_HANDLED
+#include <SDL2/SDL.h>
+#include <SDL2/SDL_image.h>
+#include <SDL2/SDL_mixer.h>
+#include <iostream>
+#include <vector>
+#include <algorithm>
+#include <cstdlib> // để dùng rand()
+#include <ctime>   // để dùng time()
+using namespace std;
+
+const int SCREEN_WIDTH = 800;
+const int SCREEN_HEIGHT = 600;
+
+// Hàm load texture
+SDL_Texture* LoadTexture(const string &file, SDL_Renderer* renderer) {
+    SDL_Surface* surface = IMG_Load(file.c_str());
+    if (!surface) {
+        cout << "Không load được ảnh: " << file << " | Lỗi: " << IMG_GetError() << endl;
+        return nullptr;
+    }
+    SDL_Texture* texture = SDL_CreateTextureFromSurface(renderer, surface);
+    SDL_FreeSurface(surface);
+    return texture;
+}
+
+struct Bullet {
+    SDL_Rect rect;
+    int speed1;
+    int startY; // Lưu vị trí ban đầu của viên đạn
+};
+
+// cấu trúc enemy
+struct Enemy {
+    SDL_Rect rect;
+    int speed2; // tốc độ di chuyển của enemy từ trên xuống dưới
+};
+
+// hàm kiểm tra va chạm giữa 2 hình chữ nhật
+bool checkCollision ( const SDL_Rect &a, const SDL_Rect &b){
+    return (a.x +a.w > b.x) && (a.x < b.x + b.w) &&
+     (a.y + a.h > b.y ) && (a.y < b.y + b.h); 
+}
+
+// *Thêm biến cooldown*
+Uint32 lastBulletTime = 0; // Lưu thời gian bắn viên đạn cuối cùng
+const Uint32 bulletCooldown = 500; // 500ms (2 viên đạn mỗi giây)
+
+// biến cooldown của enemy spawn
+Uint32 lastEnemySpawnTime = 0; // lưu thời gia spawn enemy cuối cùng
+const Uint32 enemySpawnCooldown = 2000; // 1 enemy mỗi 2 giây
+
+int main(int argc, char* argv[]) {
+    srand(static_cast<unsigned int>(time(0))); // khởi tạo seed cho rand()
+
+    if (SDL_Init(SDL_INIT_VIDEO) < 0) {
+        cout << "SDL không khởi tạo được! Lỗi: " << SDL_GetError() << endl;
+        return 1;
+    }
+
+     // Khởi tạo SDL_image
+     if ((IMG_Init(IMG_INIT_PNG) & IMG_INIT_PNG) != IMG_INIT_PNG) {
+        cout << "Không khởi tạo được SDL_image! Lỗi: " << IMG_GetError() << endl;
+        SDL_Quit();
+        return 1;
+    }
+
+    // Khởi tạo SDL_mixer
+    if(Mix_OpenAudio(44100, MIX_DEFAULT_FORMAT,2, 2048)<0){
+        cout<<"Không khởi tạo được SDL_mixer! Lỗi: "<<Mix_GetError()<<endl;
+        SDL_Quit();
+        return 1;
+    }
+
+    SDL_Window* window = SDL_CreateWindow("Spaceship",
+                                          SDL_WINDOWPOS_CENTERED,
+                                          SDL_WINDOWPOS_CENTERED,
+                                          SCREEN_WIDTH, SCREEN_HEIGHT,
+                                          SDL_WINDOW_SHOWN);
+    if (window == nullptr) {
+        cout << "Không tạo được cửa sổ! Lỗi: " << SDL_GetError() << endl;
+        SDL_Quit();
+        return 1;
+    }
+
+    SDL_Renderer* renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
+    if (renderer == nullptr) {
+        cout << "Không tạo được renderer! Lỗi: " << SDL_GetError() << endl;
+        SDL_DestroyWindow(window);
+        Mix_CloseAudio();
+        SDL_Quit();
+        return 1;
+    }
+
+    // Load ảnh phi thuyền
+    SDL_Texture* playerTexture = LoadTexture("spaceship.png", renderer);
+    if (!playerTexture) {
+        // Nếu thất bại, ta dừng
+        SDL_DestroyRenderer(renderer);
+        SDL_DestroyWindow(window);
+        Mix_CloseAudio();
+        IMG_Quit();
+        SDL_Quit();
+        return 1;
+    }
+
+    //Tải âm thanh
+    Mix_Chunk* shootSound = Mix_LoadWAV("shoot.wav");
+    if(!shootSound){ cout<<"Không tải được shoot.wav! Lỗi: "<<Mix_GetError()<<endl;}
+    Mix_Chunk* hitsound = Mix_LoadWAV("hit.wav");
+    if(!hitsound){ cout<<"Không tải được hit.wav! Lỗi: "<<Mix_GetError()<<endl;}
+    Mix_Chunk* explosionSound = Mix_LoadWAV("explosion.wav");
+    if(!explosionSound){ cout <<"Không load được explosion.wav! Lỗi: "<<Mix_GetError()<<endl;}
+
+    // Nhân vật
+    SDL_Rect playerRect;
+    playerRect.w = 50;
+    playerRect.h = 50;
+    playerRect.x = (SCREEN_WIDTH - playerRect.w) / 2;
+    playerRect.y = 500;
+    const int speed = 5;
+    int playerHealth = 3;
+
+    // Danh sách đạn và enemy
+    vector<Bullet> bullets;
+    vector<Enemy> enemies;
+    const int bulletSpeed = 7;
+    const int bulletWidth = 10, bulletHeight = 20;
+    const int enemyWidth = 40, enemyHeight = 40;
+    const int enemySpeed = 3;
+
+    bool quit = false;
+    SDL_Event event;
+
+    int score = 0;
+    Uint32 startTime = SDL_GetTicks();
+
+    while (!quit) {
+        Uint32 currentTime = SDL_GetTicks();  // Lấy thời gian hiện tại
+
+        // Xử lý sự kiện
+        while (SDL_PollEvent(&event) != 0) {
+            if (event.type == SDL_QUIT)
+                quit = true;
+            // Xử lý bắn đạn khi nhấn phím SPACE (chỉ bắn khi phím được nhấn xuống, không lặp lại khi giữ)
+            if (event.type == SDL_KEYDOWN &&
+                event.key.keysym.scancode == SDL_SCANCODE_SPACE &&
+                event.key.repeat == 0) {
+                if (currentTime - lastBulletTime >= bulletCooldown) {
+                    Bullet newBullet;
+                    newBullet.rect.w = bulletWidth;
+                    newBullet.rect.h = bulletHeight;
+                    newBullet.rect.x = playerRect.x + playerRect.w / 2 - bulletWidth / 2;
+                    newBullet.rect.y = playerRect.y;
+                    newBullet.startY = playerRect.y;
+                    newBullet.speed1 = bulletSpeed;
+                    bullets.push_back(newBullet);
+
+                    lastBulletTime = currentTime; // Cập nhật thời gian bắn gần nhất
+                    Mix_PlayChannel(-1,shootSound,0);
+                    // Debug: in ra thời gian bắn
+                    cout << "Bắn đạn tại: " << currentTime << " ms" << endl;
+                }
+            }
+        }
+
+        // Xử lý di chuyển nhân vật
+        const Uint8* keyState = SDL_GetKeyboardState(NULL);
+        int oldX = playerRect.x, oldY = playerRect.y;
+        if (keyState[SDL_SCANCODE_W]) playerRect.y -= speed;
+        if (keyState[SDL_SCANCODE_S]) playerRect.y += speed;
+        if (keyState[SDL_SCANCODE_A]) playerRect.x -= speed;
+        if (keyState[SDL_SCANCODE_D]) playerRect.x += speed;
+
+        // Giới hạn nhân vật không ra ngoài màn hình
+        if (playerRect.x < 0 || playerRect.x > SCREEN_WIDTH - playerRect.w ||
+            playerRect.y < 0 || playerRect.y > SCREEN_HEIGHT - playerRect.h) {
+            playerRect.x = oldX;
+            playerRect.y = oldY;
+        }
+
+        //spawn enemy theo cooldown
+        if (currentTime - lastEnemySpawnTime >= enemySpawnCooldown) {
+            Enemy newEnemy;
+            newEnemy.rect.w = enemyWidth;
+            newEnemy.rect.h = enemyHeight;
+            //spawn enemy tại vị trí ngẫu nhiên trên trục X ở đầu màn hình
+            newEnemy.rect.x = rand() % (SCREEN_WIDTH - enemyWidth);
+            newEnemy.rect.y = 0; // bắt đầu từ màn hình
+            newEnemy.speed2 = enemySpeed;
+            enemies.push_back(newEnemy);
+
+            lastEnemySpawnTime = currentTime;
+        }
+
+        // Cập nhật vị trí đạn
+        for (auto& bullet : bullets) {
+            bullet.rect.y -= bullet.speed1;
+        }
+
+        // cập nhật vị trí enemy (di chuyển xuống)
+        for(auto& enemy : enemies) {
+            enemy.rect.y += enemy.speed2;
+        }
+
+        // kiểm tra va chạm giữa nhân vật và enemy
+        // Gỉa sử enemies là vector<Enemy>, plaerRect là SDL_Rect của phi thuyền
+        for (int i=enemies.size()-1; i>=0; i--){
+            // Nếu enemy va chạm với nhân vật
+        if (checkCollision(enemies[i].rect,playerRect)){
+            playerHealth--;
+            cout<< "Phi thuyền bị va chạm! Máu còn lại: " << playerHealth <<endl;
+            Mix_PlayChannel(-1,hitsound,0);
+            // xóa kẻ địch khỏi danh sách
+            enemies.erase(enemies.begin()+i);
+            if (playerHealth <= 0){
+                cout<<" Game over! " <<endl;
+                quit=true;
+                break;
+            }
+        }
+    }     
+
+
+        // kiểm tra va chạm giữa đạn và enemy
+        // duyệt ngược từ cuối vector để có thể xóa phần tử khi có va chạm
+        for(int i = bullets.size() - 1; i >= 0; i--){
+            for( int j = enemies.size() - 1; j >= 0; j--){
+                if (checkCollision(bullets[i].rect, enemies[j].rect)) {
+                    score++;
+                    cout<<" Enemy đã bị tiêu diệt! Điểm:"<<score<<endl;
+                    Mix_PlayChannel(-1,explosionSound,0);
+                    // nếu va chạm, xóa đạn và enemy đó
+                    bullets.erase(bullets.begin()+i);
+                    enemies.erase(enemies.begin() + j);
+                    break;  // thoát khỏi vòng lặp cho viên đạn này
+                }
+            }
+            }
+
+            // Tính thời gian sống của người chơi
+            Uint32 elapsedTime=currentTime-startTime;
+            float survivalTime=elapsedTime/1000.0f; // chuyển đổi sang giây
+        
+            //In ra thời gian và điểm số cho Debug
+            cout<<"Thời gian sống: "<<survivalTime<<"s | Điểm: "<<score<<endl;
+
+        // Xóa đạn khi bay khỏi màn hình
+        bullets.erase(remove_if(bullets.begin(), bullets.end(),
+            [](const Bullet& b) { return b.rect.y + b.rect.h < 0; }), bullets.end());
+
+            // xóa enemy khi đi ra khỏi màn hình
+            enemies.erase(remove_if(enemies.begin(), enemies.end(),
+        [](const Enemy& e) { return e.rect.y > SCREEN_HEIGHT; }), enemies.end());
+
+
+
+        // Vẽ màn hình với màu đen
+        SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+        SDL_RenderClear(renderer);
+
+         // Vẽ texture của nhân vật
+         SDL_RenderCopy(renderer, playerTexture, NULL, &playerRect);
+
+        // Vẽ đường bay của đạn (hiệu ứng trail, màu trắng)
+        SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+        for (const auto& bullet : bullets) {
+            SDL_RenderDrawLine(renderer,
+                               bullet.rect.x + bullet.rect.w / 2, bullet.startY,
+                               bullet.rect.x + bullet.rect.w / 2, bullet.rect.y);
+        }
+
+        // Vẽ đạn (màu đỏ)
+        SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255);
+        for (const auto& bullet : bullets) {
+            SDL_RenderFillRect(renderer, &bullet.rect);
+        }
+  
+        // vẽ enemy (màu tím)
+        SDL_SetRenderDrawColor(renderer, 128, 0, 128, 255);
+        for(const auto& enemy : enemies){
+            SDL_RenderFillRect(renderer, &enemy.rect);
+        }
+
+        SDL_RenderPresent(renderer);
+        SDL_Delay(16);  // Giới hạn tốc độ khung hình ~60 FPS
+    }
+
+    // giải phóng
+    Mix_FreeChunk(shootSound);
+    Mix_FreeChunk(hitsound);
+    Mix_FreeChunk(explosionSound);
+    SDL_DestroyTexture(playerTexture);
+    SDL_DestroyRenderer(renderer);
+    SDL_DestroyWindow(window);
+    Mix_CloseAudio();
+    IMG_Quit();
+    SDL_Quit();
+    return 0;
+}
+
+
