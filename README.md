@@ -5,7 +5,7 @@ Kill the alien to protect the world
 - Game playthrough: https://youtu.be/W9S7csXrQNM
 
 Game Introduction:
-Spaceship is a war between a humans and aliens. Players have to try their best to protect the earth from the attacking of aliens by controling the spaceship and shooting the alien ship. If playeys let more than 3 aliens go to the earth, it will be destroyed.
+Spaceship is a war between a humans and aliens. Players have to try their best to protect the earth from the attacking of aliens by controling the spaceship and shooting the alien ship. If players let more than 3 aliens go to the earth, it will be destroyed.
 
 How to play the game:
 - Press W to go up ,press S to go down ,press A to go to the left, press D to go the right.
