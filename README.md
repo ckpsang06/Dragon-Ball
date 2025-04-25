@@ -21,4 +21,9 @@ NOTES:
 - When you get more than 40 scores, 2 enemies will appear at the same time so be careful.
 
   Please enjoy the game!
-  
+
+  (Những điềm mới của game so với những game khác cùng chủ để:
+  - Kiểu di chuyển zigzag, khiến cho enemy khó bị bắn trúng hơn.
+  - 2 enemy ra cùng 1 lúc khi điểm đạt trên 40 điểm.
+  - Enemy được tăng tốc độ khi điểm số đạt trên 30.
+  - Giảm thời gian enemy rơi xuống (hay tiến đến tấn công) khi điểm đạt trên 20. )
