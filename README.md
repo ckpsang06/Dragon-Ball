@@ -1,8 +1,8 @@
 # Spaceship
 Kill the alien to protect the world
 
-Thuyết trình về game + Game demo: https://youtu.be/wuvfORdHyXw
-Game playthrough: https://youtu.be/W9S7csXrQNM
+- Thuyết trình về game + Game demo: https://youtu.be/wuvfORdHyXw
+- Game playthrough: https://youtu.be/W9S7csXrQNM
 
 Game Introduction:
 Spaceship is a war between a humans and aliens. Players have to try their best to protect the earth from the attacking of aliens by controling the spaceship and shooting the alien ship. If playeys let more than 3 aliens go to the earth, it will be destroyed.
